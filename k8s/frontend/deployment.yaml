@@ -51,15 +51,28 @@ spec:
           value: "true"
         - name: TAR1090_ENABLE_AC_DB
           value: "true"
+        - name: TAR1090_GHOST_TIMEOUT
+          value: "60"
+        - name: TAR1090_HISTORY_RETENTION_DAYS
+          value: "1"
         # We need to inject custom config.js to point to local tileserver
         # This will be done via ConfigMap mounting over /usr/local/share/tar1090/html/config.js or similar
         - name: TAR1090_CONFIGJS_APPEND
           value: |
             if (typeof loStore !== 'undefined') {
                 loStore['customTiles'] = "http://10.9.0.21/styles/basic-preview/{z}/{x}/{y}.png";
-                loStore['MapType_tar1090'] = "custom_tiles";
+                if (navigator.onLine && loStore['MapType_tar1090'] === "custom_tiles") {
+                    delete loStore['MapType_tar1090'];
+                }
+                if (!navigator.onLine) {
+                    loStore['MapType_tar1090'] = "custom_tiles";
+                }
             }
-            MapType_tar1090 = "custom_tiles";
+            if (!navigator.onLine) {
+                MapType_tar1090 = "custom_tiles";
+            }
+            displayPersistence = 30;
+            PlaneTimeout = 60000;
         volumeMounts:
         - mountPath: /var/globe_history
           name: history-storage

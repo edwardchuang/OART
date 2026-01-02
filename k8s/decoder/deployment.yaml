@@ -50,6 +50,14 @@ spec:
           value: "readsb"
         - name: READSB_NET_ENABLE
           value: "true"
+        - name: READSB_REMOVE_AFTER
+          value: "60"
+        - name: READSB_NET_OUT_TAPER
+          value: "60"
+        - name: READSB_LAT
+          value: "23.699"
+        - name: READSB_LON
+          value: "120.517"
           # User needs to set LAT/LON/ALT typically, but optional for basic tracking
         ports:
         - containerPort: 8080
