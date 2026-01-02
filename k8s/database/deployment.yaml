@@ -29,7 +29,11 @@ spec:
           if [ ! -f /usr/lib/aarch64-linux-gnu/mod_spatialite.so ]; then
             apt-get update -qq && apt-get install -y -qq --no-install-recommends libsqlite3-mod-spatialite
           fi
-          pip install -q protobuf requests
+          mkdir -p /data/python-packages
+          export PYTHONPATH=$PYTHONPATH:/data/python-packages
+          if [ ! -d /data/python-packages/protobuf ]; then
+            pip install -q --target /data/python-packages protobuf requests
+          fi
           python3 /app/ingest.py
         env:
         - name: READSB_HOST
@@ -38,6 +42,8 @@ spec:
           value: "30003"
         - name: PYTHONUNBUFFERED
           value: "1"
+        - name: PYTHONPATH
+          value: "/data/python-packages"
         volumeMounts:
         - mountPath: /data
           name: db-storage
@@ -52,11 +58,17 @@ spec:
           if [ ! -f /usr/lib/aarch64-linux-gnu/mod_spatialite.so ]; then
             apt-get update -qq && apt-get install -y -qq --no-install-recommends libsqlite3-mod-spatialite
           fi
-          pip install -q datasette
-          datasette /data/adsb_history.db --host 0.0.0.0 --port 8001 --load-extension /usr/lib/aarch64-linux-gnu/mod_spatialite.so
+          mkdir -p /data/python-packages
+          export PYTHONPATH=$PYTHONPATH:/data/python-packages
+          if [ ! -f /data/python-packages/bin/datasette ]; then
+            pip install -q --target /data/python-packages datasette
+          fi
+          /data/python-packages/bin/datasette /data/adsb_history.db --host 0.0.0.0 --port 8001 --load-extension /usr/lib/aarch64-linux-gnu/mod_spatialite.so
         env:
         - name: PYTHONUNBUFFERED
           value: "1"
+        - name: PYTHONPATH
+          value: "/data/python-packages"
         ports:
         - containerPort: 8001
           name: http
