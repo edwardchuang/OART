@@ -17,6 +17,7 @@ spec:
       labels:
         app: oart-frontend
     spec:
+      terminationGracePeriodSeconds: 60
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -54,7 +55,9 @@ spec:
         - name: TAR1090_GHOST_TIMEOUT
           value: "60"
         - name: TAR1090_HISTORY_RETENTION_DAYS
-          value: "1"
+          value: "30"
+        - name: TAR1090_PGB
+          value: "true"
         # We need to inject custom config.js to point to local tileserver
         # This will be done via ConfigMap mounting over /usr/local/share/tar1090/html/config.js or similar
         - name: TAR1090_CONFIGJS_APPEND
@@ -76,10 +79,15 @@ spec:
         volumeMounts:
         - mountPath: /var/globe_history
           name: history-storage
+        - mountPath: /run/tar1090
+          name: run-tar1090
       volumes:
       - name: history-storage
         persistentVolumeClaim:
           claimName: oart-frontend-history-pvc
+      - name: run-tar1090
+        emptyDir:
+          medium: Memory
 
 ---
 apiVersion: v1

@@ -7,6 +7,8 @@ metadata:
     app: oart-decoder
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: oart-decoder
@@ -15,6 +17,7 @@ spec:
       labels:
         app: oart-decoder
     spec:
+      terminationGracePeriodSeconds: 60
       nodeSelector:
         hardware: sdr
       tolerations:
@@ -58,6 +61,10 @@ spec:
           value: "23.699"
         - name: READSB_LON
           value: "120.517"
+        - name: READSB_NET_RO_SIZE
+          value: "1000"
+        - name: READSB_WRITE_JSON_EVERY
+          value: "1"
           # User needs to set LAT/LON/ALT typically, but optional for basic tracking
         ports:
         - containerPort: 8080
@@ -71,7 +78,25 @@ spec:
         volumeMounts:
         - mountPath: /dev/bus/usb
           name: usb
+        - mountPath: /var/lib/readsb
+          name: decoder-state
       volumes:
       - name: usb
         hostPath:
           path: /dev/bus/usb
+      - name: decoder-state
+        persistentVolumeClaim:
+          claimName: oart-decoder-state-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: oart-decoder-state-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 2Gi
