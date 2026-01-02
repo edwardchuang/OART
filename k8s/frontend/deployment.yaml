@@ -77,7 +77,6 @@ spec:
             // Aggressive timeouts to prevent "ghost" planes
             seenTimeout = 30;
             seenTimeoutMlat = 30;
-            displayPersistence = 15;
             PlaneTimeout = 30000;
             autoSelectNoRefresh = true;
 
