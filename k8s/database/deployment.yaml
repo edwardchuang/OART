@@ -7,6 +7,8 @@ metadata:
     app: oart-database
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: oart-database
@@ -30,12 +32,26 @@ spec:
         - name: READSB_HOST
           value: "oart-decoder-svc"
         - name: READSB_PORT
-          value: "30005" # or 30003
+          value: "30003"
         volumeMounts:
         - mountPath: /data
           name: db-storage
         - mountPath: /app
           name: script-volume
+      - name: db-browser
+        image: python:3.11-slim
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          apt-get update && apt-get install -y libsqlite3-mod-spatialite && \
+          pip install datasette datasette-spatialite && \
+          datasette /data/adsb_history.db --host 0.0.0.0 --port 8001 --load-extension mod_spatialite
+        ports:
+        - containerPort: 8001
+          name: http
+        volumeMounts:
+        - mountPath: /data
+          name: db-storage
       volumes:
       - name: db-storage
         persistentVolumeClaim:
@@ -43,6 +59,21 @@ spec:
       - name: script-volume
         configMap:
           name: oart-db-script
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oart-db-browser-svc
+  namespace: default
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: 10.9.0.23
+spec:
+  selector:
+    app: oart-database
+  ports:
+  - port: 80
+    targetPort: 8001
+  type: LoadBalancer
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

@@ -42,11 +42,32 @@ data:
 
     DB_PATH = "/data/adsb_history.db"
     HOST = os.getenv("READSB_HOST", "oart-decoder-svc")
-    PORT = int(os.getenv("READSB_PORT", "30003")) # Using SBS format (text)
+    PORT = int(os.getenv("READSB_PORT", "30003"))
 
     def init_db():
         conn = sqlite3.connect(DB_PATH)
+        conn.enable_load_extension(True)
+        
+        # Load Spatialite
+        spatialite_loaded = False
+        for path in ["mod_spatialite.so", "/usr/lib/x86_64-linux-gnu/mod_spatialite.so", "mod_spatialite"]:
+            try:
+                conn.load_extension(path)
+                spatialite_loaded = True
+                break
+            except:
+                continue
+        
         c = conn.cursor()
+        if spatialite_loaded:
+            print("Spatialite extension loaded successfully.")
+            # Initialize spatial metadata if not exists
+            try:
+                c.execute("SELECT InitSpatialMetadata(1)")
+            except:
+                pass
+        
+        # Create table with geometry support
         c.execute("""
             CREATE TABLE IF NOT EXISTS aircraft_positions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,9 +76,19 @@ data:
                 alt INTEGER,
                 lat REAL,
                 lon REAL,
+                track_id TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             );
         """)
+        
+        # Add Geometry column if it doesn't exist
+        if spatialite_loaded:
+            try:
+                c.execute("SELECT AddGeometryColumn('aircraft_positions', 'geom', 4326, 'POINT', 'XY')")
+                c.execute("SELECT CreateSpatialIndex('aircraft_positions', 'geom')")
+            except:
+                pass
+        
         conn.commit()
         return conn
 
@@ -65,28 +96,40 @@ data:
         print(f"Connecting to {HOST}:{PORT} for SBS data...")
         conn = init_db()
         
+        last_seen = {} # {icao: timestamp}
+        track_sessions = {} # {icao: track_id}
+        
         while True:
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(10)
                 s.connect((HOST, PORT))
                 f = s.makefile()
                 for line in f:
-                    # SBS format: MSG,type,... ,icao, ... ,alt,lat,lon,...
                     parts = line.strip().split(',')
                     if len(parts) >= 15 and parts[0] == "MSG":
                         msg_type = parts[1]
                         icao = parts[4]
+                        now = time.time()
                         
-                        # Type 3 has position and altitude
+                        # Session logic: new track if seen > 15 mins ago
+                        if icao not in last_seen or (now - last_seen[icao]) > 900:
+                            track_sessions[icao] = f"{icao}_{int(now)}"
+                        
+                        last_seen[icao] = now
+                        
                         if msg_type == "3":
                             alt = parts[11]
                             lat = parts[14]
                             lon = parts[15]
                             if lat and lon:
                                 c = conn.cursor()
+                                track_id = track_sessions[icao]
                                 c.execute(
-                                    "INSERT INTO aircraft_positions (icao, alt, lat, lon) VALUES (?, ?, ?, ?)",
-                                    (icao, alt, lat, lon)
+                                    """INSERT INTO aircraft_positions 
+                                       (icao, alt, lat, lon, track_id, geom) 
+                                       VALUES (?, ?, ?, ?, ?, MakePoint(CAST(? AS REAL), CAST(? AS REAL), 4326))""",
+                                    (icao, alt, lat, lon, track_id, lon, lat)
                                 )
                                 conn.commit()
                 s.close()
