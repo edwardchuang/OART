@@ -74,16 +74,12 @@ spec:
             if (!navigator.onLine) {
                 MapType_tar1090 = "custom_tiles";
             }
-            // Aggressive timeouts to prevent "ghost" planes
+            // Aggressive timeouts verified against upstream config.js
             seenTimeout = 30;
             seenTimeoutMlat = 30;
-            PlaneTimeout = 30000;
-            autoSelectNoRefresh = true;
 
-            // Professional UI Features
-            enableLabels = true;
-            labelAlways = true;
-            rangeOutline = true;
+            // Verified Professional Features
+            actual_range_show = true;
         volumeMounts:
         - mountPath: /var/globe_history
           name: history-storage
