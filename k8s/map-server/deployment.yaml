@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oart-map-server
+  namespace: default
+  labels:
+    app: oart-map-server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: oart-map-server
+  template:
+    metadata:
+      labels:
+        app: oart-map-server
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - oart-map-server
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: tileserver-gl
+        image: ttl.sh/oart-map-server-edwardc-debug:24h
+        args: ["-p", "8080", "--config", "/config/config.json"]
+        ports:
+        - containerPort: 8080
+          name: http
+        volumeMounts:
+        - mountPath: /data
+          name: tiles-storage
+        - mountPath: /config
+          name: tiles-config
+      volumes:
+      - name: tiles-storage
+        persistentVolumeClaim:
+          claimName: oart-map-tiles-pvc
+      - name: tiles-config
+        configMap:
+          name: map-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oart-map-server-svc
+  namespace: default
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: 10.9.0.21
+spec:
+  selector:
+    app: oart-map-server
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: LoadBalancer

@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oart-database
+  namespace: default
+  labels:
+    app: oart-database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oart-database
+  template:
+    metadata:
+      labels:
+        app: oart-database
+    spec:
+      nodeSelector:
+        disktype: ssd
+      containers:
+      - name: db-ingestor
+        image: python:3.11-slim
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          apt-get update && apt-get install -y libsqlite3-mod-spatialite && \
+          pip install protobuf requests && \
+          python3 /app/ingest.py
+        env:
+        - name: READSB_HOST
+          value: "oart-decoder-svc"
+        - name: READSB_PORT
+          value: "30005" # or 30003
+        volumeMounts:
+        - mountPath: /data
+          name: db-storage
+        - mountPath: /app
+          name: script-volume
+      volumes:
+      - name: db-storage
+        persistentVolumeClaim:
+          claimName: oart-db-pvc
+      - name: script-volume
+        configMap:
+          name: oart-db-script
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: oart-db-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 10Gi

@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oart-decoder
+  namespace: default
+  labels:
+    app: oart-decoder
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oart-decoder
+  template:
+    metadata:
+      labels:
+        app: oart-decoder
+    spec:
+      nodeSelector:
+        hardware: sdr
+      tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "sdr"
+        effect: "NoSchedule"
+      containers:
+      - name: readsb
+        image: ghcr.io/sdr-enthusiasts/docker-readsb-protobuf:latest
+        securityContext:
+          privileged: true
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        env:
+        - name: READSB_DC_FILTER_POSITION
+          value: "false"
+        - name: READSB_FIX_BLASTER
+          value: "true"
+        - name: READSB_GNSS
+          value: "false"
+        - name: READSB_MODE
+          value: "readsb"
+        - name: READSB_NET_ENABLE
+          value: "true"
+          # User needs to set LAT/LON/ALT typically, but optional for basic tracking
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 30005
+          name: beast
+        - containerPort: 30003
+          name: sbs
+        - containerPort: 30104
+          name: beast-in
+        volumeMounts:
+        - mountPath: /dev/bus/usb
+          name: usb
+      volumes:
+      - name: usb
+        hostPath:
+          path: /dev/bus/usb

@@ -1,0 +1,98 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: map-config
+  namespace: default
+data:
+  config.json: |
+    {
+      "options": {
+        "paths": {
+          "root": "/usr/src/app/node_modules/tileserver-gl-styles",
+          "fonts": "fonts",
+          "styles": "styles",
+          "mbtiles": "/data"
+        }
+      },
+      "styles": {
+        "basic-preview": {
+          "style": "basic-preview/style.json"
+        }
+      },
+      "data": {
+        "v3": {
+          "mbtiles": "map.mbtiles"
+        }
+      }
+    }
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oart-db-script
+  namespace: default
+data:
+  ingest.py: |
+    import sqlite3
+    import socket
+    import time
+    import os
+    import sys
+
+    DB_PATH = "/data/adsb_history.db"
+    HOST = os.getenv("READSB_HOST", "oart-decoder-svc")
+    PORT = int(os.getenv("READSB_PORT", "30003")) # Using SBS format (text)
+
+    def init_db():
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS aircraft_positions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                icao TEXT NOT NULL,
+                callsign TEXT,
+                alt INTEGER,
+                lat REAL,
+                lon REAL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        conn.commit()
+        return conn
+
+    def main():
+        print(f"Connecting to {HOST}:{PORT} for SBS data...")
+        conn = init_db()
+        
+        while True:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.connect((HOST, PORT))
+                f = s.makefile()
+                for line in f:
+                    # SBS format: MSG,type,... ,icao, ... ,alt,lat,lon,...
+                    parts = line.strip().split(',')
+                    if len(parts) >= 15 and parts[0] == "MSG":
+                        msg_type = parts[1]
+                        icao = parts[4]
+                        
+                        # Type 3 has position and altitude
+                        if msg_type == "3":
+                            alt = parts[11]
+                            lat = parts[14]
+                            lon = parts[15]
+                            if lat and lon:
+                                c = conn.cursor()
+                                c.execute(
+                                    "INSERT INTO aircraft_positions (icao, alt, lat, lon) VALUES (?, ?, ?, ?)",
+                                    (icao, alt, lat, lon)
+                                )
+                                conn.commit()
+                s.close()
+            except Exception as e:
+                print(f"Connection lost or error: {e}. Retrying in 5s...")
+                time.sleep(5)
+
+    if __name__ == "__main__":
+        main()

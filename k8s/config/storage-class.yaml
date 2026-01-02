@@ -1,0 +1,13 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: fast-ssd
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+parameters:
+  numberOfReplicas: "2"           
+  staleReplicaTimeout: "2880"
+  fromBackup: ""
+  nodeSelector: "ssd"   
+  dataLocality: "best-effort"

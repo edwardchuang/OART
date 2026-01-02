@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oart-frontend
+  namespace: default
+  labels:
+    app: oart-frontend
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: oart-frontend
+  template:
+    metadata:
+      labels:
+        app: oart-frontend
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - oart-frontend
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: tar1090
+        image: mikenye/tar1090:latest
+        env:
+        - name: BEASTHOST
+          value: "oart-decoder-svc"
+        - name: BEASTPORT
+          value: "30005"
+        - name: MLATHOST
+          value: "oart-decoder-svc"  # Optional, usually separate
+        - name: MLATPORT
+          value: "30105"
+        - name: TAR1090_DEFAULTCENTERLAT
+          value: "23.699"
+        - name: TAR1090_DEFAULTCENTERLON
+          value: "120.517"
+        - name: TAR1090_MESSAGERATEINTITLE
+          value: "true"
+        - name: TAR1090_PLANECOUNTINTITLE
+          value: "true"
+        - name: TAR1090_ENABLE_AC_DB
+          value: "true"
+        # We need to inject custom config.js to point to local tileserver
+        # This will be done via ConfigMap mounting over /usr/local/share/tar1090/html/config.js or similar
+        - name: TAR1090_CONFIGJS_APPEND
+          value: |
+            if (typeof loStore !== 'undefined') {
+                loStore['customTiles'] = "http://10.9.0.21/styles/basic-preview/{z}/{x}/{y}.png";
+                loStore['MapType_tar1090'] = "custom_tiles";
+            }
+            MapType_tar1090 = "custom_tiles";
+        volumeMounts:
+        - mountPath: /var/globe_history
+          name: history-storage
+      volumes:
+      - name: history-storage
+        persistentVolumeClaim:
+          claimName: oart-frontend-history-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oart-frontend-svc
+  namespace: default
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: 10.9.0.22
+spec:
+  selector:
+    app: oart-frontend
+  ports:
+  - port: 80
+    targetPort: 80
+  type: LoadBalancer
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: oart-frontend-history-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 5Gi
