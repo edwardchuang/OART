@@ -25,14 +25,19 @@ spec:
         command: ["/bin/sh", "-c"]
         args:
         - |
-          apt-get update && apt-get install -y libsqlite3-mod-spatialite && \
-          pip install protobuf requests && \
+          set -e
+          if [ ! -f /usr/lib/aarch64-linux-gnu/mod_spatialite.so ]; then
+            apt-get update -qq && apt-get install -y -qq --no-install-recommends libsqlite3-mod-spatialite
+          fi
+          pip install -q protobuf requests
           python3 /app/ingest.py
         env:
         - name: READSB_HOST
           value: "oart-decoder-svc"
         - name: READSB_PORT
           value: "30003"
+        - name: PYTHONUNBUFFERED
+          value: "1"
         volumeMounts:
         - mountPath: /data
           name: db-storage
@@ -43,15 +48,27 @@ spec:
         command: ["/bin/sh", "-c"]
         args:
         - |
-          apt-get update && apt-get install -y libsqlite3-mod-spatialite && \
-          pip install datasette datasette-spatialite && \
-          datasette /data/adsb_history.db --host 0.0.0.0 --port 8001 --load-extension mod_spatialite
+          set -e
+          if [ ! -f /usr/lib/aarch64-linux-gnu/mod_spatialite.so ]; then
+            apt-get update -qq && apt-get install -y -qq --no-install-recommends libsqlite3-mod-spatialite
+          fi
+          pip install -q datasette
+          datasette /data/adsb_history.db --host 0.0.0.0 --port 8001 --load-extension /usr/lib/aarch64-linux-gnu/mod_spatialite.so
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
         ports:
         - containerPort: 8001
           name: http
         volumeMounts:
         - mountPath: /data
           name: db-storage
+        startupProbe:
+          httpGet:
+            path: /
+            port: 8001
+          failureThreshold: 120
+          periodSeconds: 10
       volumes:
       - name: db-storage
         persistentVolumeClaim:

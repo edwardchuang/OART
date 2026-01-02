@@ -81,6 +81,12 @@ data:
             );
         """)
         
+        # Schema Migration: Add track_id if it doesn't exist
+        try:
+            c.execute("ALTER TABLE aircraft_positions ADD COLUMN track_id TEXT")
+        except sqlite3.OperationalError:
+            pass # Column already exists
+        
         # Add Geometry column if it doesn't exist
         if spatialite_loaded:
             try:
@@ -93,19 +99,26 @@ data:
         return conn
 
     def main():
-        print(f"Connecting to {HOST}:{PORT} for SBS data...")
+        print(f"Connecting to {HOST}:{PORT} for SBS data...", flush=True)
         conn = init_db()
         
         last_seen = {} # {icao: timestamp}
         track_sessions = {} # {icao: track_id}
+        msg_count = 0
+        pos_count = 0
         
         while True:
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.settimeout(10)
+                s.settimeout(15)
                 s.connect((HOST, PORT))
+                print(f"Connected to {HOST}:{PORT}. Listening for messages...", flush=True)
                 f = s.makefile()
                 for line in f:
+                    msg_count += 1
+                    if msg_count % 100 == 0:
+                        print(f"SBS Stream Status: {msg_count} messages received, {pos_count} positions saved.", flush=True)
+                    
                     parts = line.strip().split(',')
                     if len(parts) >= 15 and parts[0] == "MSG":
                         msg_type = parts[1]
@@ -123,6 +136,7 @@ data:
                             lat = parts[14]
                             lon = parts[15]
                             if lat and lon:
+                                pos_count += 1
                                 c = conn.cursor()
                                 track_id = track_sessions[icao]
                                 c.execute(
@@ -134,7 +148,7 @@ data:
                                 conn.commit()
                 s.close()
             except Exception as e:
-                print(f"Connection lost or error: {e}. Retrying in 5s...")
+                print(f"Connection lost or error: {e}. Retrying in 5s...", flush=True)
                 time.sleep(5)
 
     if __name__ == "__main__":
