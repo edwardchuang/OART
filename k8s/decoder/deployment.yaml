@@ -53,6 +53,8 @@ spec:
           value: "readsb"
         - name: READSB_NET_ENABLE
           value: "true"
+        - name: READSB_GAIN
+          value: "49.6"
         - name: READSB_REMOVE_AFTER
           value: "60"
         - name: READSB_NET_OUT_TAPER
