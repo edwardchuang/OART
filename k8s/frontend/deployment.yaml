@@ -74,18 +74,28 @@ spec:
             if (!navigator.onLine) {
                 MapType_tar1090 = "custom_tiles";
             }
-            displayPersistence = 30;
-            PlaneTimeout = 60000;
+            displayPersistence = 15;
+            PlaneTimeout = 30000;
+            autoSelectNoRefresh = true;
         volumeMounts:
         - mountPath: /var/globe_history
           name: history-storage
+          subPath: globe_history
+        - mountPath: /var/lib/collectd
+          name: history-storage
+          subPath: collectd
         - mountPath: /run/tar1090
           name: run-tar1090
+        - mountPath: /run/collectd
+          name: run-collectd
       volumes:
       - name: history-storage
         persistentVolumeClaim:
           claimName: oart-frontend-history-pvc
       - name: run-tar1090
+        emptyDir:
+          medium: Memory
+      - name: run-collectd
         emptyDir:
           medium: Memory
 
