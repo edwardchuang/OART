@@ -43,8 +43,12 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
         env:
-        - name: READSB_DC_FILTER_POSITION
-          value: "false"
+        - name: READSB_DCFILTER
+          value: "true"
+        - name: READSB_NET_VERIFY
+          value: "true"
+        - name: READSB_MIN_MESSAGES
+          value: "2"
         - name: READSB_FIX_BLASTER
           value: "true"
         - name: READSB_GNSS
